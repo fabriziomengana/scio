@@ -14,7 +14,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ==============================================================================
 # Metti True per il primo lancio sul PC (scarica tutto lo storico 2025-2026)
 # Metti False prima di caricarlo su GitHub (aggiornamento quotidiano veloce)
-RECUPERO_STORICO = True  
+RECUPERO_STORICO = False  
 
 # Lo script non scaricherà nulla di precedente a questo anno
 ANNO_LIMITE_MINIMO = 2025 
