@@ -1,0 +1,34 @@
+name: Sync Data
+
+on:
+  schedule:
+    # Gira ogni giorno alle 08:00 UTC (9:00 ora italiana)
+    - cron: '0 8 * * *'
+  # Ti permette di lanciarlo a mano per testare
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del codice
+        uses: actions/checkout@v3
+
+      - name: Configura Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Installa librerie
+        run: pip install -r requirements.txt
+
+      - name: Esegui lo Scraper
+        run: python cgsse.py
+
+      - name: Salva i cambiamenti nel repo
+        run: |
+          git config --global user.name "ScioperiBot"
+          git config --global user.email "bot@sciopero.net"
+          git add data_*.json
+          git commit -m "Aggiornamento dati automatico" || exit 0
+          git push
