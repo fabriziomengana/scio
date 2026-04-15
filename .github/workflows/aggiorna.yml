@@ -12,10 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout del codice
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Configura Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
@@ -30,5 +30,5 @@ jobs:
           git config --global user.name "ScioperiBot"
           git config --global user.email "bot@sciopero.net"
           git add data_*.json
-          git commit -m "Aggiornamento dati automatico" || exit 0
+          git commit -m "sync automatico" || exit 0
           git push
