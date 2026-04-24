@@ -2,7 +2,6 @@ name: Sync Data
 
 on:
   schedule:
-    # Gira alle 12:30 e 18:30 italiane (10:30 e 16:30 UTC)
     - cron: '30 10,16 * * *'
   workflow_dispatch: 
 
@@ -27,8 +26,8 @@ jobs:
 
       - name: Commit and Push changes
         run: |
-          git config --global user.name "GitHub Action"
-          git config --global user.email "actions@github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          # Il comando seguente evita l'errore se non ci sono modifiche da salvare
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Aggiornamento dati scioperi" && git push)
+          git commit -m "Aggiornamento automatico scioperi" || echo "Nessun cambiamento"
+          git push
