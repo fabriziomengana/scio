@@ -2,36 +2,33 @@ name: Sync Data
 
 on:
   schedule:
-    - cron: '0 8 * * *'
-  workflow_dispatch:
+    # Gira alle 10:30 UTC (12:30 italiane) e alle 16:30 UTC (18:30 italiane)
+    - cron: '30 10,16 * * *'
+  workflow_dispatch: # Permette di lanciarlo a mano per test
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout del codice
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - name: Configura Python
-        uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.12'
+          python-version: '3.9'
 
-      - name: Installa librerie
+      - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install requests beautifulsoup4
 
-      - name: Esegui lo Scraper
+      - name: Run scraper
         run: python cgsse.py
 
-      - name: Salva i cambiamenti nel repo
+      - name: Commit and Push changes
         run: |
-          git config --global user.name "ScioperiBot"
-          git config --global user.email "bot@sciopero.net"
-          git add data_*.json
-          git commit -m "Sync automatico dati" || exit 0
-          git push
-
-env:
-  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+          git config --global user.name "GitHub Action"
+          git config --global user.email "actions@github.com"
+          git add .
+          # Evita errore se non ci sono nuovi dati
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Aggiornamento dati scioperi" && git push)
