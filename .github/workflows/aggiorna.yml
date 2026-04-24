@@ -5,6 +5,10 @@ on:
     - cron: '30 10,16 * * *'
   workflow_dispatch: 
 
+# Permessi espliciti per questo job
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,8 +22,7 @@ jobs:
           python-version: '3.9'
 
       - name: Install dependencies
-        run: |
-          pip install requests beautifulsoup4
+        run: pip install requests beautifulsoup4
 
       - name: Run scraper
         run: python cgsse.py
@@ -29,5 +32,10 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "Aggiornamento automatico scioperi" || echo "Nessun cambiamento"
-          git push
+          # Evita l'errore se non ci sono cambiamenti
+          if git diff --staged --quiet; then
+            echo "Nessuna modifica rilevata."
+          else
+            git commit -m "Aggiornamento dati scioperi $(date +'%Y-%m-%d %H:%M')"
+            git push
+          fi
