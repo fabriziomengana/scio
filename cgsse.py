@@ -5,18 +5,18 @@ import os
 import time
 from datetime import datetime
 import urllib3
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
-# Disabilita avvisi SSL per evitare blocchi su GitHub
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-def get_extra_details(url, headers):
+def get_extra_details(url, headers, session):
     try:
-        time.sleep(0.5)
-        res = requests.get(url, headers=headers, timeout=15, verify=False)
+        time.sleep(1.5) # Pausa più lunga tra i dettagli
+        res = session.get(url, headers=headers, timeout=30, verify=False)
         if res.status_code != 200: return {}
         detail_soup = BeautifulSoup(res.text, 'html.parser')
         
-        # Estrazione sicura dei dettagli
         def get_text_safe(selector_class):
             div = detail_soup.find('div', class_=selector_class)
             if div:
@@ -29,31 +29,48 @@ def get_extra_details(url, headers):
             "ore": get_text_safe('views-field-field-ore'),
             "note": get_text_safe('views-field-body')
         }
-    except Exception as e:
-        print(f"  ⚠️ Errore dettagli link {url}: {e}")
+    except:
         return {}
 
 def scrape_cgsse():
     base_url = "https://cgsse.it/calendario-scioperi"
     nuovi_dati = []
     anno_corrente = datetime.now().year
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    
+    # Sessione con gestione dei tentativi (Retry)
+    session = requests.Session()
+    retry = Retry(total=5, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('https://', adapter)
+    
+    # Headers molto più completi per sembrare un browser vero
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Referer': 'https://cgsse.it/',
+        'Connection': 'keep-alive'
+    }
 
-    print(f"🚀 Inizio scraping per l'anno {anno_corrente}...")
+    print(f"🚀 Avvio connessione a cgsse.it per l'anno {anno_corrente}...")
 
-    for page in range(0, 3): # Iniziamo con 3 pagine per evitare timeout
-        print(f"🔎 Scansione pagina {page}...")
+    for page in range(0, 3):
+        print(f"🔎 Analisi pagina {page}...")
         try:
-            res = requests.get(base_url, params={'page': page}, headers=headers, timeout=25, verify=False)
+            # Aggiungiamo un piccolo ritardo prima di ogni pagina
+            if page > 0: time.sleep(2)
+            
+            res = session.get(base_url, params={'page': page}, headers=headers, timeout=35, verify=False)
+            
             if res.status_code != 200:
-                print(f"❌ Errore connessione pagina {page}: {res.status_code}")
+                print(f"❌ Il sito ha risposto con errore {res.status_code}")
                 continue
                 
             soup = BeautifulSoup(res.text, 'html.parser')
             rows = soup.find_all('li', class_='table-row views-row')
             
             if not rows:
-                print("ℹ️ Nessuna riga trovata in questa pagina.")
+                print("ℹ️ Fine delle righe disponibili.")
                 break
 
             for row in rows:
@@ -70,8 +87,8 @@ def scrape_cgsse():
                 link_tag = row.find('a', href=True)
                 url_det = "https://cgsse.it" + link_tag['href'] if link_tag and link_tag['href'].startswith('/') else link_tag['href'] if link_tag else ""
                 
-                print(f"✅ Trovato sciopero: {data_str}")
-                extra = get_extra_details(url_det, headers) if url_det else {}
+                print(f"✅ Recupero: {data_str}")
+                extra = get_extra_details(url_det, headers, session) if url_det else {}
 
                 sciopero = {
                     'id_sciopero': url_det.split('/')[-1] if url_det else data_str,
@@ -89,7 +106,7 @@ def scrape_cgsse():
                 }
                 nuovi_dati.append(sciopero)
         except Exception as e:
-            print(f"❌ Errore critico durante lo scraping: {e}")
+            print(f"⚠️ Salto pagina {page} per errore: {e}")
             
     return nuovi_dati
 
@@ -98,21 +115,19 @@ def salva_dati(dati):
     nome_file = f"data_{anno}.json"
     
     if not dati:
-        print("⚠️ Nessun dato utile estratto, salto il salvataggio.")
+        print("🛑 Errore: Non sono riuscito a scaricare nessun dato. Il sito potrebbe bloccare GitHub.")
         return
 
-    # Caricamento file esistente
     archivio = []
     if os.path.exists(nome_file):
         try:
             with open(nome_file, 'r', encoding='utf-8') as f:
                 archivio = json.load(f)
-        except Exception as e:
-            print(f"⚠️ Errore lettura file esistente: {e}. Ne creerò uno nuovo.")
+        except:
+            archivio = []
 
-    # Aggiornamento logico
     id_esistenti = {str(item['id_sciopero']): i for i, item in enumerate(archivio)}
-    nuovi_inseriti = 0
+    nuovi = 0
     
     for s in dati:
         my_id = str(s['id_sciopero'])
@@ -120,16 +135,11 @@ def salva_dati(dati):
             archivio[id_esistenti[my_id]] = s
         else:
             archivio.append(s)
-            nuovi_inseriti += 1
+            nuovi += 1
 
-    try:
-        with open(nome_file, 'w', encoding='utf-8') as f:
-            json.dump(archivio, f, ensure_ascii=False, indent=4)
-        print(f"💾 File {nome_file} salvato con successo! Nuovi record: {nuovi_inseriti}")
-    except Exception as e:
-        print(f"❌ Errore durante la scrittura del file: {e}")
-        exit(1) # Forza l'errore se non riesce a scrivere
+    with open(nome_file, 'w', encoding='utf-8') as f:
+        json.dump(archivio, f, ensure_ascii=False, indent=4)
+    print(f"🎉 Successo! File aggiornato con {nuovi} nuovi inserimenti.")
 
 if __name__ == "__main__":
-    risultati = scrape_cgsse()
-    salva_dati(risultati)
+    salva_dati(scrape_cgsse())
